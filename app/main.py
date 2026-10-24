@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 
 app = FastAPI(title="Facility Helpdesk Copilot")
-
+from app.routes import router
+app.include_router(router)
 
 @app.get("/")
 def hello():
