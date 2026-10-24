@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-
+from app.schemas import AssignRequest, RequestCreate, StatusUpdate
 from app.database import get_db
 from app.schemas import RequestCreate
 
@@ -55,3 +55,94 @@ def list_requests(
 
     rows = db.execute(text(sql), params).mappings().all()
     return [dict(r) for r in rows]
+@router.put("/requests/{request_id}/assign")
+def assign_request(
+    request_id: int,
+    data: AssignRequest,
+    db: Session = Depends(get_db),
+):
+    req = db.execute(
+        text("SELECT id, status FROM requests WHERE id = :id"),
+        {"id": request_id},
+    ).mappings().first()
+    if req is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if req["status"] == "RESOLVED":
+        raise HTTPException(
+            status_code=409, detail="Cannot assign a resolved request"
+        )
+
+    tech = db.execute(
+        text("SELECT id, active FROM technicians WHERE id = :id"),
+        {"id": data.technician_id},
+    ).mappings().first()
+    if tech is None:
+        raise HTTPException(status_code=404, detail="Technician not found")
+    if not tech["active"]:
+        raise HTTPException(status_code=400, detail="Technician is not active")
+
+    row = db.execute(
+        text(
+            """
+            UPDATE requests
+            SET assigned_to = :tech_id
+            WHERE id = :id
+            RETURNING id, title, status, assigned_to
+            """
+        ),
+        {"tech_id": data.technician_id, "id": request_id},
+    ).mappings().one()
+    db.commit()
+    return dict(row)
+ALLOWED_TRANSITIONS = {
+    "OPEN": ["IN_PROGRESS"],
+    "IN_PROGRESS": ["RESOLVED"],
+    "RESOLVED": [],
+}
+
+
+@router.put("/requests/{request_id}/status")
+def update_status(
+    request_id: int,
+    data: StatusUpdate,
+    db: Session = Depends(get_db),
+):
+    req = db.execute(
+        text("SELECT id, status, assigned_to FROM requests WHERE id = :id"),
+        {"id": request_id},
+    ).mappings().first()
+    if req is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    current = req["status"]
+    new = data.status
+
+    if new not in ALLOWED_TRANSITIONS[current]:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot move from {current} to {new}",
+        )
+    if new == "IN_PROGRESS" and req["assigned_to"] is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Assign a technician before starting work",
+        )
+
+    if new == "RESOLVED":
+        set_clause = "status = :status, resolved_at = NOW()"
+    else:
+        set_clause = "status = :status"
+
+    row = db.execute(
+        text(
+            f"""
+            UPDATE requests
+            SET {set_clause}
+            WHERE id = :id
+            RETURNING id, title, status, assigned_to, resolved_at
+            """
+        ),
+        {"status": new, "id": request_id},
+    ).mappings().one()
+    db.commit()
+    return dict(row)
