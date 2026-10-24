@@ -6,6 +6,7 @@ from app.database import get_db
 from app.schemas import RequestCreate
 
 router = APIRouter()
+DUE_DAYS = {"HIGH": 1, "MEDIUM": 3, "LOW": 7}
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -25,12 +26,16 @@ def create_request(data: RequestCreate, db: Session = Depends(get_db)):
     row = db.execute(
         text(
             """
-            INSERT INTO requests (title, description, priority, created_by)
-            VALUES (:title, :description, :priority, :created_by)
-            RETURNING id, title, priority, status, created_by, created_at
+            INSERT INTO requests
+                (title, description, priority, created_by, due_at)
+            VALUES
+                (:title, :description, :priority, :created_by,
+                 NOW() + make_interval(days => :days))
+            RETURNING id, title, priority, status, created_by,
+                      created_at, due_at
             """
         ),
-        data.model_dump(),
+        {**data.model_dump(), "days": DUE_DAYS[data.priority]},
     ).mappings().one()
     db.commit()
     return dict(row)
