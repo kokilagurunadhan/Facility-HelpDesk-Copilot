@@ -1,0 +1,24 @@
+PROJECT:
+
+git = we can track every changes we make in our project ,so we can undo mistakes and see the progress
+
+GitHub = online home where others can use it in their computer and see my work
+
+clone repo=without it ,the project is only live on your computer ,no link to GitHub(here cloned in documents)
+
+gitIgnore = python template (no leak of secrete passwords)
+
+(venv)  virtual environment = private box for python lib only this project can use what use installed for it not other crash it
+
+PostgreSQL password=****
+           port=5432
+
+Pgadmin =used to communicate with PostgreSQL (default GUI for PostgreSQL)--visual tool to handle PostgreSQL database (we can use anything)
+
+postman==popular API ,send request to server and view the response(password =***,mail=***,username=***)
+
+mkdir == make directory(another name for folder)(for creating the folder)
+new-item ...... -itemtype file  (for creating the files)
+
+database==sql(serial primary key-gives own unique id, not null-the not to be empty, unique-for email , check(), references- foreign key allows interact with other tables)
+          
