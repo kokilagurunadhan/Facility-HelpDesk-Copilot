@@ -45,21 +45,32 @@ def list_requests(
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
+    # 1. Base query using clean, explicit column qualifiers
     sql = """
-        SELECT id, title, priority, status, created_by, assigned_to,
-               created_at, due_at, resolved_at
-        FROM requests
+        SELECT r.id, r.title, r.priority, r.status, r.created_by,
+               r.assigned_to, t.name AS technician,
+               r.created_at, r.due_at, r.resolved_at
+        FROM requests r
+        LEFT JOIN technicians t ON t.id = r.assigned_to
     """
     params = {"limit": limit}
 
+    # 2. Add filtering conditions cleanly only ONCE
     if status:
-        sql += " WHERE status = :status"
+        sql += " WHERE r.status = :status"
         params["status"] = status
 
-    sql += " ORDER BY created_at DESC LIMIT :limit"
+    # 3. Add sorting and restriction rules explicitly ONCE
+    sql += " ORDER BY r.created_at DESC LIMIT :limit"
 
-    rows = db.execute(text(sql), params).mappings().all()
-    return [dict(r) for r in rows]
+    try:
+        rows = db.execute(text(sql), params).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        # Help you log the exact SQL database structure issue if tables are missing
+        print(f"Database Execution Error: {e}")
+        raise HTTPException(status_code=500, detail="Database lookup failed")
+
 @router.put("/requests/{request_id}/assign")
 def assign_request(
     request_id: int,
